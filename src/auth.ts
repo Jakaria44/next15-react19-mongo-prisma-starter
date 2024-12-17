@@ -35,6 +35,8 @@ export const {
         }
 
         const email = credentials.email as string;
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
         const hash = saltAndHashPassword(credentials.password);
 
         /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
