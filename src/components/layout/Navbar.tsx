@@ -1,8 +1,9 @@
-import { auth } from "@/auth";
+import {auth} from "@/auth";
 import Link from "next/link";
 
 import Image from "next/image";
-import Logout from "./Logout";
+import {ThemeToggle} from "@/components/layout/ThemeProvider";
+import Logout from "@/components/Logout";
 
 const Navbar = async () => {
   const session = await auth();
@@ -19,6 +20,8 @@ const Navbar = async () => {
         </div>
 
         <div className="flex items-center gap-x-5">
+
+          <ThemeToggle />
           {!session?.user ? (
             <Link href="/sign-in">
               <div className="bg-blue-600 text-white text-sm px-4 py-2 rounded-sm">
@@ -49,3 +52,5 @@ const Navbar = async () => {
 };
 
 export default Navbar;
+
+
