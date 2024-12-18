@@ -15,7 +15,7 @@ const ListOfUsers = async () => {
 						{user.email}
 					</li>
 				))}
-			</ul>
+			</ul>`
 		</div>
 	);
 }
