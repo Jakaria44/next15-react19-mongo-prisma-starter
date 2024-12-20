@@ -1,5 +1,3 @@
-import ListOfUsers from "@/components/home/ListOfUsers";
-
 export default async function Home() {
 
 
@@ -7,7 +5,7 @@ export default async function Home() {
 		<main className="m-auto">
 			<h1 className="text-3xl">Landing page</h1>
 
-			<ListOfUsers/>
+			{/*<ListOfUsers/>*/}
 		</main>
 	);
 }
