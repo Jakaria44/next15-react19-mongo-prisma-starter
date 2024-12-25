@@ -2,7 +2,7 @@
 
 import { signIn, signOut } from "@/auth";
 import { db } from "@/db";
-import { LoginFormSchema, signupFormSchema } from "@/lib/types";
+import { signinFormSchema, signupFormSchema } from "@/lib/types";
 import { saltAndHashPassword } from "@/utils/helper";
 import { Prisma } from "@prisma/client";
 import { AuthError } from "next-auth";
@@ -32,89 +32,52 @@ export const logout = async () => {
   revalidatePath("/");
 };
 
-export const loginWithCreds = async (formData: unknown) => {
-  const result = LoginFormSchema.safeParse(formData);
-
-  if (!result.success) {
-    let errorMessage = "";
-
-    result.error.issues.forEach((issue) => {
-      errorMessage += issue.message + " " + issue.path.join(" ") + " ";
-    });
-
-    return { error: errorMessage };
-  }
-
-  const existingUser = await getUserByEmail(result.data.email);
-  console.log(existingUser);
-
+export async function signinWithCreds(formData: FormData) {
   try {
-    await signIn("credentials", {
-      ...result.data,
-      redirectTo: "/",
+    const validatedFields = signinFormSchema.parse({
+      email: formData.get("email"),
+      password: formData.get("password"),
     });
-    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  } catch (error: any) {
-    if (error instanceof AuthError) {
-      switch (error.type) {
-        case "CredentialsSignin":
-          return { error: "Invalid credentials!" };
-        default:
-          return { error: "Something went wrong!" };
+
+    try {
+      const result = await signIn("credentials", {
+        ...validatedFields,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        return {
+          data: null,
+          errors: [{ message: result.error }],
+        };
       }
+
+      return {
+        errors: null,
+        data: "success",
+      };
+    } catch (error) {
+      if (error instanceof AuthError) {
+        return {
+          data: null,
+          errors: [{ message: error.message }],
+        };
+      }
+      throw error;
     }
-
-    throw error;
-  }
-  revalidatePath("/");
-};
-
-export const signUp = async (formData: unknown) => {
-  console.log("inside signup", formData);
-
-  const result = signupFormSchema.safeParse({ formData });
-
-  console.log("result,", result);
-  if (!result.success) {
-    let errorMessage = "";
-
-    result.error.issues.forEach((issue) => {
-      errorMessage += issue.message + " " + issue.path.join(" ") + " ";
-    });
-
-    return { error: errorMessage };
-  }
-
-  const existingUser = await getUserByEmail(result.data.email);
-
-  console.log(existingUser);
-  if (existingUser) {
-    console.log(existingUser);
-    return { error: "User already exists!" };
-  }
-
-  const user: Prisma.UserCreateInput = {
-    name: result.data.name,
-    email: result.data.email,
-    hashedPassword: saltAndHashPassword(result.data.password),
-    role: "MEMBER",
-    status: "PENDING",
-  };
-
-  console.log(user);
-  try {
-    await db.user.create({ data: user });
-
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return {
+        errors: transformZodErrors(error),
+        data: null,
+      };
+    }
     return {
-      success: true,
-      message:
-        "User created successfully! You will be notified once your account is approved!",
+      errors: [{ message: "An unexpected error occurred" }],
+      data: null,
     };
-    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  } catch (error: any) {
-    return { error: "Something went wrong!" + error.toString() };
   }
-};
+}
 
 export const transformZodErrors = async (error: z.ZodError) => {
   return error.issues.map((issue) => ({

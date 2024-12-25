@@ -1,10 +1,10 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import { UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import NextAuth from "next-auth";
+import NextAuth, { AuthError } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-
 import { db } from "./db";
-import { saltAndHashPassword } from "./utils/helper";
+import { getRecentAttempts, trackAuthAttempt } from "./lib/auth-tracking";
 
 export const {
   handlers: { GET, POST },
@@ -13,7 +13,15 @@ export const {
   auth,
 } = NextAuth({
   adapter: PrismaAdapter(db),
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge: 60 * 60, // 1 hour
+    updateAge: 24 * 60 * 60, // 24 hours
+  },
+  pages: {
+    signIn: "/signin",
+    error: "/auth/error",
+  },
   providers: [
     Credentials({
       name: "Credentials",
@@ -25,42 +33,119 @@ export const {
         },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (credentials) => {
-        if (!credentials || !credentials.email || !credentials.password) {
-          return null;
+      authorize: async (credentials, req) => {
+        if (!credentials?.email || !credentials?.password) {
+          throw new AuthError("Missing credentials");
         }
 
-        const email = credentials.email as string;
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        const hash = saltAndHashPassword(credentials.password);
+        const email = credentials.email.toString().toLowerCase();
 
-        /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-        let user: any = await db.user.findUnique({
-          where: {
-            email,
-          },
-        });
+        try {
+          const recentAttempts = await getRecentAttempts(email);
+          if (recentAttempts.length >= 5) {
+            const oldestAttempt = recentAttempts[recentAttempts.length - 1];
+            const timeSinceFirstAttempt =
+              Date.now() - oldestAttempt.createdAt.getTime();
 
-        if (!user) {
-          user = await db.user.create({
-            data: {
+            if (timeSinceFirstAttempt < 30 * 60 * 1000) {
+              // 30 minutes
+              const waitTime = Math.ceil(
+                (30 * 60 * 1000 - timeSinceFirstAttempt) / 1000
+              );
+              throw new AuthError(
+                `Too many attempts. Please try again in ${Math.floor(
+                  waitTime / 60
+                )}:${waitTime % 60} minutes.`
+              );
+            }
+          }
+
+          const user = await db.user.findUnique({
+            where: {
               email,
-              hashedPassword: hash,
+              status: UserStatus.APPROVED,
+            },
+            select: {
+              id: true,
+              email: true,
+              hashedPassword: true,
+              name: true,
+              image: true,
             },
           });
-        } else {
-          const isMatch = bcrypt.compareSync(
+          if (!user) {
+            await trackAuthAttempt({
+              email,
+              successful: false,
+              ipAddress: req?.ip,
+              userAgent: req?.headers?.["user-agent"],
+            });
+            throw new AuthError("Invalid credentials");
+          }
+
+          const isValid = await bcrypt.compare(
             credentials.password as string,
             user.hashedPassword
           );
-          if (!isMatch) {
-            throw new Error("Incorrect password.");
-          }
-        }
 
-        return user;
+          if (!isValid) {
+            await trackAuthAttempt({
+              email,
+              userId: user.id,
+              successful: false,
+              ipAddress: req?.ip,
+              userAgent: req?.headers?.["user-agent"],
+            });
+            throw new AuthError("Invalid credentials");
+          }
+
+          await trackAuthAttempt({
+            email,
+            userId: user.id,
+            successful: true,
+            ipAddress: req?.ip,
+            userAgent: req?.headers?.["user-agent"],
+          });
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+          };
+        } catch (error) {
+          if (error instanceof AuthError) {
+            throw error;
+          }
+          throw new AuthError("An unexpected error occurred");
+        }
       },
     }),
   ],
+  callbacks: {
+    async jwt({ token, user, account }) {
+      if (account && user) {
+        token.userId = user.id;
+        token.email = user.email;
+        token.name = user.name;
+        token.image = user.image;
+        token.exp = Math.floor(Date.now() / 1000) + 60 * 60;
+      }
+
+      if (Date.now() >= (token.exp as number) * 1000) {
+        return null;
+      }
+
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.userId as string;
+        session.user.email = token.email as string;
+        session.user.name = token.name as string;
+        session.user.image = token.image as string;
+      }
+      return session;
+    },
+  },
 });

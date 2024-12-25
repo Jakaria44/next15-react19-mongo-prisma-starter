@@ -22,7 +22,7 @@ function RegisterForm() {
     formState: { errors, isSubmitting },
   } = useForm<SignupFormSchema>({
     resolver: zodResolver(signupFormSchema),
-    defaultValues: { private: false, image: null },
+    defaultValues: { image: null },
   });
   const router = useRouter();
   const hiddenFileInputRef = useRef<HTMLInputElement | null>(null);
