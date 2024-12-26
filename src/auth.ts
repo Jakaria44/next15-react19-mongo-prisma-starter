@@ -138,7 +138,7 @@ export const {
         token.email = user.email;
         token.name = user.name;
         token.image = user.image;
-        token.role = user.role as string;
+        token.role = user.role;
         token.exp = Math.floor(Date.now() / 1000) + 60 * 60;
       }
 
