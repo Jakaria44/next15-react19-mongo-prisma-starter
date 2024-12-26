@@ -2,7 +2,6 @@ import { auth } from "@/auth";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-const publicRoutes = ["/", "/login", "/signup"];
 const protectedRoutes = ["/dashboard"];
 const adminRoutes = ["/dashboard/members"];
 
