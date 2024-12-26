@@ -67,7 +67,9 @@ function Signin() {
     if (errors) {
       toast({
         title: "Error",
-        description: errors[0].message.split("Read")[0],
+        description: Array.isArray(errors)
+          ? errors[0].message.split("Read")[0]
+          : "Something went wrong",
         variant: "destructive",
       });
       return;

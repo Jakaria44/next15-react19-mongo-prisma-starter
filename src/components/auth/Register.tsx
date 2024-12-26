@@ -62,7 +62,9 @@ function RegisterForm() {
       if (errors) {
         toast({
           title: "Error",
-          description: errors.map((e) => e.message).join(", "),
+          description: Array.isArray(errors)
+            ? errors.map((e) => e.message).join(", ")
+            : "An unexpected error occurred",
           variant: "destructive",
         });
         return;
