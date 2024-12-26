@@ -3,7 +3,6 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import NextAuth, { AuthError } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { getRecentAttempts, trackAuthAttempt } from "./lib/auth-tracking";
 
 export const {
   handlers: { GET, POST },
@@ -36,28 +35,29 @@ export const {
         if (!credentials?.email || !credentials?.password) {
           throw new AuthError("Missing credentials");
         }
+        console.log(req);
 
         const email = credentials.email.toString().toLowerCase();
 
         try {
-          const recentAttempts = await getRecentAttempts(email);
-          if (recentAttempts.length >= 5) {
-            const oldestAttempt = recentAttempts[recentAttempts.length - 1];
-            const timeSinceFirstAttempt =
-              Date.now() - oldestAttempt.createdAt.getTime();
+          // const recentAttempts = await getRecentAttempts(email);
+          // if (recentAttempts.length >= 5) {
+          //   const oldestAttempt = recentAttempts[recentAttempts.length - 1];
+          //   const timeSinceFirstAttempt =
+          //     Date.now() - oldestAttempt.createdAt.getTime();
 
-            if (timeSinceFirstAttempt < 30 * 60 * 1000) {
-              // 30 minutes
-              const waitTime = Math.ceil(
-                (30 * 60 * 1000 - timeSinceFirstAttempt) / 1000
-              );
-              throw new AuthError(
-                `Too many attempts. Please try again in ${Math.floor(
-                  waitTime / 60
-                )}:${waitTime % 60} minutes.`
-              );
-            }
-          }
+          //   if (timeSinceFirstAttempt < 30 * 60 * 1000) {
+          //     // 30 minutes
+          //     const waitTime = Math.ceil(
+          //       (30 * 60 * 1000 - timeSinceFirstAttempt) / 1000
+          //     );
+          //     throw new AuthError(
+          //       `Too many attempts. Please try again in ${Math.floor(
+          //         waitTime / 60
+          //       )}:${waitTime % 60} minutes.`
+          //     );
+          //   }
+          // }
 
           const user = await db.user.findUnique({
             where: {
@@ -70,15 +70,16 @@ export const {
               hashedPassword: true,
               name: true,
               image: true,
+              role: true,
             },
           });
           if (!user) {
-            await trackAuthAttempt({
-              email,
-              successful: false,
-              ipAddress: req?.ip,
-              userAgent: req?.headers?.["user-agent"],
-            });
+            // await trackAuthAttempt({
+            //   email,
+            //   successful: false,
+            //   ipAddress: req?.ip,
+            //   userAgent: req?.headers?.["user-agent"],
+            // });
             throw new AuthError("Invalid credentials");
           }
 
@@ -95,29 +96,30 @@ export const {
           );
           console.log("isValid", isValid);
           if (!isValid) {
-            await trackAuthAttempt({
-              email,
-              userId: user.id,
-              successful: false,
-              ipAddress: req?.ip,
-              userAgent: req?.headers?.["user-agent"],
-            });
+            // await trackAuthAttempt({
+            //   email,
+            //   userId: user.id,
+            //   successful: false,
+            //   ipAddress: req?.ip,
+            //   userAgent: req?.headers?.["user-agent"],
+            // });
             throw new AuthError("Invalid credentials");
           }
 
-          await trackAuthAttempt({
-            email,
-            userId: user.id,
-            successful: true,
-            ipAddress: req?.ip,
-            userAgent: req?.headers?.["user-agent"],
-          });
+          // await trackAuthAttempt({
+          //   email,
+          //   userId: user.id,
+          //   successful: true,
+          //   ipAddress: req?.ip,
+          //   userAgent: req?.headers?.["user-agent"],
+          // });
 
           return {
             id: user.id,
             email: user.email,
             name: user.name,
             image: user.image,
+            role: user.role,
           };
         } catch (error) {
           console.log("error", error);
@@ -136,6 +138,7 @@ export const {
         token.email = user.email;
         token.name = user.name;
         token.image = user.image;
+        token.role = user.role as string;
         token.exp = Math.floor(Date.now() / 1000) + 60 * 60;
       }
 
@@ -151,6 +154,7 @@ export const {
         session.user.email = token.email as string;
         session.user.name = token.name as string;
         session.user.image = token.image as string;
+        session.user.role = token.role as string;
       }
       return session;
     },
