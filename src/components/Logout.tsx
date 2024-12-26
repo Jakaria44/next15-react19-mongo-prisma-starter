@@ -1,13 +1,22 @@
-"use client";
-import { logout } from "@/actions/auth";
+import { signOut } from "@/auth";
+import { revalidatePath } from "next/cache";
 
 const Logout = () => {
   return (
-    <div onClick={() => logout()}>
-      <div className="bg-gray-600 text-white text-sm px-4 py-2 rounded-md cursor-pointer">
+    <form
+      action={async () => {
+        "use server";
+        await signOut();
+        revalidatePath("/");
+      }}
+    >
+      <button
+        type="submit"
+        className="bg-gray-600 text-white text-sm px-4 py-2 rounded-md cursor-pointer"
+      >
         logout
-      </div>
-    </div>
+      </button>
+    </form>
   );
 };
 

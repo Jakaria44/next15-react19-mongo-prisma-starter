@@ -1,9 +1,8 @@
+import { db } from "@/db";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import NextAuth, { AuthError } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { db } from "./db";
 import { getRecentAttempts, trackAuthAttempt } from "./lib/auth-tracking";
 
 export const {
@@ -63,7 +62,7 @@ export const {
           const user = await db.user.findUnique({
             where: {
               email,
-              status: UserStatus.APPROVED,
+              // status: UserStatus.APPROVED,
             },
             select: {
               id: true,
@@ -83,11 +82,18 @@ export const {
             throw new AuthError("Invalid credentials");
           }
 
+          console.log("user found", user);
+          // const isValid = await bcrypt.compare(
+          //   credentials.password as string,
+          //   user.hashedPassword
+          // );
+          console.log("password", credentials.password);
+
           const isValid = await bcrypt.compare(
             credentials.password as string,
             user.hashedPassword
           );
-
+          console.log("isValid", isValid);
           if (!isValid) {
             await trackAuthAttempt({
               email,
@@ -114,6 +120,7 @@ export const {
             image: user.image,
           };
         } catch (error) {
+          console.log("error", error);
           if (error instanceof AuthError) {
             throw error;
           }

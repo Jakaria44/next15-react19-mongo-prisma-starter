@@ -5,14 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/hooks/use-toast"; // Assuming shadcn's toast hook
+import { toast } from "@/hooks/use-toast";
 import { signupFormSchema, SignupFormSchema } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Upload } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { CldUploadWidget } from "next-cloudinary";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ChangeEvent, useRef, useState } from "react";
+import { useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
+
+const cloudinaryUploadPreset =
+  process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "ml_default";
 
 function RegisterForm() {
   const {
@@ -22,47 +26,40 @@ function RegisterForm() {
     formState: { errors, isSubmitting },
   } = useForm<SignupFormSchema>({
     resolver: zodResolver(signupFormSchema),
-    defaultValues: { image: null },
+    defaultValues: { image: "" },
   });
+
   const router = useRouter();
-  const hiddenFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [imagePublicId, setImagePublicId] = useState<string>("");
   const [preview, setPreview] = useState<string | null>(null);
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
-        setValue("image", file); // Manually set the image
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setPreview(null);
+  const handleImageUploadSuccess = (result: any) => {
+    if (typeof result.info === "object") {
+      const { public_id, secure_url } = result.info;
+      setImagePublicId(public_id);
+      setPreview(secure_url);
+      setValue("image", public_id); // Store the public_id instead of the file
     }
   };
 
   const removeImage = () => {
     setPreview(null);
-    hiddenFileInputRef.current!.value = "";
-    setValue("image", null);
+    setImagePublicId("");
+    setValue("image", "");
   };
 
-  const triggerFileInput = () => hiddenFileInputRef.current?.click();
-
   const onSubmitForm: SubmitHandler<SignupFormSchema> = async (data) => {
-    const formData = new FormData();
-    formData.append("name", data.name);
-    formData.append("email", data.email || "");
-    formData.append("password", data.password);
-    formData.append("image", data.image as File);
-
     try {
+      // Create form data with the image public ID instead of the file
+      const formData = new FormData();
+      formData.append("name", data.name);
+      formData.append("email", data.email || "");
+      formData.append("password", data.password);
+      formData.append("image", imagePublicId); // Send public_id instead of file
+
       const { data: success, errors } = await registerMember(formData);
 
-      console.log(success, errors);
       if (errors) {
-        console.log(errors);
         toast({
           title: "Error",
           description: errors.map((e) => e.message).join(", "),
@@ -100,14 +97,26 @@ function RegisterForm() {
             <Label htmlFor="image">Profile Picture</Label>
             <div className="flex items-center justify-center w-full">
               {!preview ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={triggerFileInput}
-                  className="w-full h-32 border-dashed"
+                <CldUploadWidget
+                  uploadPreset={cloudinaryUploadPreset}
+                  signatureEndpoint="/api/sign-cloudinary-params"
+                  onSuccess={handleImageUploadSuccess}
+                  options={{
+                    singleUploadAutoClose: true,
+                    maxFiles: 1,
+                  }}
                 >
-                  <Upload className="mr-2 h-4 w-4" /> Upload Image
-                </Button>
+                  {({ open }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => open?.()}
+                      className="w-full h-32 border-dashed"
+                    >
+                      Upload Image
+                    </Button>
+                  )}
+                </CldUploadWidget>
               ) : (
                 <div className="relative w-32 h-32">
                   <Image
@@ -118,14 +127,26 @@ function RegisterForm() {
                     className="rounded-full"
                   />
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-50 rounded-full">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={triggerFileInput}
-                      className="text-white mr-2"
+                    <CldUploadWidget
+                      uploadPreset={cloudinaryUploadPreset}
+                      signatureEndpoint="/api/sign-cloudinary-params"
+                      onSuccess={handleImageUploadSuccess}
+                      options={{
+                        singleUploadAutoClose: true,
+                        maxFiles: 1,
+                      }}
                     >
-                      Change
-                    </Button>
+                      {({ open }) => (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => open?.()}
+                          className="text-white mr-2"
+                        >
+                          Change
+                        </Button>
+                      )}
+                    </CldUploadWidget>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -138,13 +159,6 @@ function RegisterForm() {
                 </div>
               )}
             </div>
-            <Input
-              {...register("image")}
-              ref={hiddenFileInputRef}
-              type="file"
-              className="hidden"
-              onChange={handleFileChange}
-            />
             {errors.image && (
               <p className="text-sm text-red-500 flex items-center">
                 <AlertCircle className="mr-1 h-4 w-4" /> {errors.image.message}

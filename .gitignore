@@ -42,3 +42,8 @@ next-env.d.ts
 
 
 /.idea
+
+
+
+src/run.sh
+src/files.txt

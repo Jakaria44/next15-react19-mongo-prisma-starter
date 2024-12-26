@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { ThemeToggle } from "@/components/layout/ThemeProvider";
 import Logout from "@/components/Logout";
-import Image from "next/image";
+import ImageViewer from "../common/image-viewer";
 
 const Navbar = async () => {
   const session = await auth();
@@ -32,7 +32,7 @@ const Navbar = async () => {
               <div className="flex items-center gap-x-2 text-sm">
                 {session?.user?.name}
                 {session?.user?.image && (
-                  <Image
+                  <ImageViewer
                     className="rounded-full"
                     width={30}
                     height={30}

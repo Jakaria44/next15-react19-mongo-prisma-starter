@@ -88,14 +88,11 @@ export const transformZodErrors = async (error: z.ZodError) => {
 
 export async function registerMember(formData: FormData) {
   try {
-    console.log(formData);
-    console.log(Object.getPrototypeOf(formData.get("image")));
-
     const validatedFields = signupFormSchema.parse({
       name: formData.get("name"),
       email: formData.get("email"),
       password: formData.get("password"),
-      image: formData.get("image") as File,
+      image: formData.get("image"),
     });
 
     console.log({ validatedFields });
@@ -116,6 +113,7 @@ export async function registerMember(formData: FormData) {
       hashedPassword: hashedPassword,
       role: "MEMBER",
       status: "PENDING",
+      image: validatedFields.image,
     };
 
     await db.user.create({ data: user });
